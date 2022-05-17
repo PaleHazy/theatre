@@ -11,6 +11,16 @@ import styled from 'styled-components'
 // using an ID to make CSS selectors faster
 const elementId = 'pointer-root'
 
+/**
+ * When the cursor is locked, this css var is added to #pointer-root
+ * whose value will be the locked cursor (e.g. ew-resize).
+ *
+ * Look up references of this constant for examples of how it is used.
+ *
+ * See {@link useCssCursorLock} - code that locks the cursor
+ */
+export const lockedCursorCssVarName = '--lockedCursor'
+
 const Container = styled.div`
   pointer-events: auto;
   &.normal {
@@ -54,13 +64,20 @@ const PointerEventsHandler: React.FC<{
     }
   }, [])
 
+  const lockedCursor = locks[0]?.cursor ?? ''
   return (
     <context.Provider value={contextValue}>
       <Container
         id={elementId}
         className={(locks[0]?.className ?? 'normal') + ' ' + props.className}
       >
-        <CursorOverride style={{cursor: locks[0]?.cursor ?? ''}}>
+        <CursorOverride
+          style={{
+            cursor: lockedCursor,
+            // @ts-ignore
+            [lockedCursorCssVarName]: lockedCursor,
+          }}
+        >
           {props.children}
         </CursorOverride>
       </Container>
@@ -79,6 +96,8 @@ const PointerEventsHandler: React.FC<{
  * but then "unlocking" that style will again reveal the existing styles.
  *
  * It behaves a bit like a stack.
+ *
+ * See {@link lockedCursorCssVarName}
  */
 export const useCssCursorLock = (
   /** Whether to enable the provided cursor style */
