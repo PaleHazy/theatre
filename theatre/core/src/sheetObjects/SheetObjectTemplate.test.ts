@@ -89,7 +89,6 @@ describe(`SheetObjectTemplate`, () => {
         },
       })
 
-      debugger
       const iter = iterateOver(
         obj.template.getMapOfValidSequenceTracks_forStudio(),
       )

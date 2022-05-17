@@ -13,6 +13,7 @@ import {
 const voidFn = () => {}
 
 export class PrismDerivation<V> extends AbstractDerivation<V> {
+
   protected _cacheOfDendencyValues: Map<IDerivation<unknown>, unknown> =
     new Map()
   protected _possiblyStaleDeps = new Set<IDerivation<unknown>>()
@@ -47,6 +48,7 @@ export class PrismDerivation<V> extends AbstractDerivation<V> {
     this._cacheOfDendencyValues.clear()
 
     const collector = (observedDep: IDerivation<unknown>): void => {
+      // console.log('collector has been called', newDeps, observedDep)
       newDeps.add(observedDep)
       this._addDependency(observedDep)
     }
@@ -72,6 +74,7 @@ export class PrismDerivation<V> extends AbstractDerivation<V> {
 
     this._dependencies.forEach((dep) => {
       if (!newDeps.has(dep)) {
+        // console.log(newDeps)
         this._removeDependency(dep)
       }
     })

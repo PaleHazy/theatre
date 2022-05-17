@@ -74,6 +74,7 @@ export default class Sequence {
   }
 
   getIdentityDerivation(path: Array<string | number>): IDerivation<unknown> {
+    // if root
     if (path.length === 0) {
       return prism((): ISequence['pointer']['$$__pointer_type'] => ({
         length: val(this.pointer.length),
@@ -81,6 +82,7 @@ export default class Sequence {
         position: val(this.pointer.position),
       }))
     }
+    // if the path has sub paths ?
     if (path.length > 1) {
       return prism(() => undefined)
     }

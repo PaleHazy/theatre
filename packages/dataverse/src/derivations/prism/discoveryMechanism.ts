@@ -39,6 +39,7 @@ function createMechanism() {
   const reportResolutionStart = (d: IDerivation<$IntentionalAny>) => {
     const possibleCollector = stack.peek()
     if (possibleCollector) {
+
       possibleCollector(d)
     }
 

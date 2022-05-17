@@ -21,6 +21,7 @@ export default class SheetTemplate {
   readonly objectTemplatesP = this._objectTemplates.pointer
 
   constructor(readonly project: Project, sheetId: string) {
+    debugger
     this.address = {...project.address, sheetId}
   }
 

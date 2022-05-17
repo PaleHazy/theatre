@@ -78,7 +78,7 @@ export default class TheatreProject implements IProject {
       sheetId,
       'project.sheet',
     )
-
+    debugger
     if (process.env.NODE_ENV !== 'production') {
       validateInstanceId(
         instanceId,
@@ -87,7 +87,11 @@ export default class TheatreProject implements IProject {
       )
     }
 
-    return privateAPI(this).getOrCreateSheet(sanitizedPath, instanceId)
-      .publicApi
+    const theatreSheetPublicApi = privateAPI(this).getOrCreateSheet(
+      sanitizedPath,
+      instanceId,
+    ).publicApi
+    debugger
+    return theatreSheetPublicApi
   }
 }

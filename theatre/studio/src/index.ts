@@ -25,7 +25,9 @@ export default studio
 
 registerStudioBundle()
 
+// "registering" setti
 function registerStudioBundle() {
+  // if we are not on the browser lel
   if (typeof window == 'undefined') return
 
   const existingStudioBundle = (window as $FixMe)[

@@ -96,6 +96,7 @@ const SequenceEditorPanel: React.FC<{}> = (props) => {
 }
 
 const Content: React.FC<{}> = () => {
+  // using the context
   const {dims} = usePanel()
 
   return usePrism(() => {
@@ -159,7 +160,7 @@ const Content: React.FC<{}> = () => {
     const graphEditorOpen = val(layoutP.graphEditorDims.isOpen)
 
     return (
-      <Container ref={containerRef}>
+      <Container ref={containerRef} className="sequencer-editor-panel">
         <LeftBackground style={{width: `${val(layoutP.leftDims.width)}px`}} />
         <FrameStampPositionProvider layoutP={layoutP}>
           <Header layoutP={layoutP} />

@@ -144,7 +144,7 @@ export default class Atom<State extends {}>
   setState(newState: State) {
     const oldState = this._currentState
     this._currentState = newState
-
+    // setting state checck the updates
     this._checkUpdates(this._rootScope, oldState, newState)
   }
 
@@ -194,6 +194,7 @@ export default class Atom<State extends {}>
    * Sets the state of the atom at `path`.
    */
   setIn(path: $FixMe[], val: $FixMe) {
+    // from here is where the magic happens, or one of the magics
     return this.reduceState(path, () => val)
   }
 
@@ -266,7 +267,8 @@ export const valueDerivation = <P extends PointerType<$IntentionalAny>>(
   let derivation = identityDerivationWeakMap.get(meta)
   if (!derivation) {
     const root = meta.root
-    if (!isIdentityDerivationProvider(root)) {
+    // if it is not an identity derivation provider
+    if (!isIdentityDerivationProvider(root)) { 
       throw new Error(
         `Cannot run valueDerivation() on a pointer whose root is not an IdentityChangeProvider`,
       )
@@ -282,7 +284,9 @@ function isIdentityDerivationProvider(
   val: unknown,
 ): val is IdentityDerivationProvider {
   return (
+    // it is an object
     typeof val === 'object' &&
+    // it is NOT null
     val !== null &&
     (val as $IntentionalAny)['$$isIdentityDerivationProvider'] === true
   )

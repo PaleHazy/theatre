@@ -23,6 +23,7 @@ export default class Sheet {
     readonly template: SheetTemplate,
     public readonly instanceId: string,
   ) {
+    debugger
     this.project = template.project
     this.address = {
       ...template.address,
@@ -46,11 +47,11 @@ export default class Sheet {
       nativeObject,
       config,
     )
-
+    debugger
     const object = objTemplate.createInstance(this, nativeObject, config)
-
+    debugger
     this._objects.setIn([key], object)
-
+    debugger
     return object
   }
 

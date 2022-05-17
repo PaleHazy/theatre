@@ -36,6 +36,7 @@ const KeyframeEditor: React.FC<{
 
   return (
     <Container
+      className="KeyframeEditor-tsx"
       style={{
         top: `${props.leaf.nodeHeight / 2}px`,
         left: `calc(${val(

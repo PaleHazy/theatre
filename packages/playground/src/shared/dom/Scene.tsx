@@ -53,7 +53,9 @@ const Box: React.FC<{
 
   useLayoutEffect(() => {
     const unsubscribeFromChanges = onChange(obj.props, (newValues) => {
-      setState(newValues)
+      console.log(newValues)
+      debugger
+      // setState(newValues)
     })
     return unsubscribeFromChanges
   }, [id])
@@ -101,6 +103,7 @@ const Box: React.FC<{
 
   return (
     <div
+     className='sample-dom-dommy'
       onClick={() => {
         studio.setSelection([obj])
       }}

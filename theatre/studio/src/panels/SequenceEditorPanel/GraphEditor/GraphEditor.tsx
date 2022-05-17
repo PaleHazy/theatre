@@ -15,7 +15,7 @@ import FrameGrid from '@theatre/studio/panels/SequenceEditorPanel/FrameGrid/Fram
 import {transparentize} from 'polished'
 
 export const graphEditorColors = {
-  '1': {iconColor: '#b98b08'},
+  '1': {iconColor: '#70a904'},
   '2': {iconColor: '#70a904'},
   '3': {iconColor: '#2e928a'},
   '4': {iconColor: '#a943bb'},

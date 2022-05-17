@@ -31,6 +31,8 @@ export default class DerivationEmitter<V> {
     return this
   }
 
+  // funky name to give this method as it does a lot?
+  // like run on each tick
   private _possiblyMarkAsStale = () => {
     this._ticker.onThisOrNextTick(this._refresh)
   }

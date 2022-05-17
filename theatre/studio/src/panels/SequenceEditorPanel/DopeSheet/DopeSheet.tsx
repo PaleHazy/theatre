@@ -20,7 +20,7 @@ const DopeSheet: React.FC<{layoutP: Pointer<SequenceEditorPanelLayout>}> = ({
   const height = useVal(layoutP.dopeSheetDims.height)
 
   return (
-    <Container style={{height: height + 'px'}}>
+    <Container style={{height: height + 'px'}} className="dope-sheet-container">
       <DopeSheetBackground layoutP={layoutP} />
       <VerticalScrollContainer>
         <Left layoutP={layoutP} />

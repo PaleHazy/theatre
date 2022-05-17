@@ -9,7 +9,13 @@ import getStudio from './getStudio'
 import type {OutlineSelectable, OutlineSelection} from './store/types'
 
 export const getOutlineSelection = (): OutlineSelection => {
+  // getStudio() is getting the private api
   const projects = val(getStudio().projectsP)
+  console.log('PROJECTS', projects)
+  console.log(getStudio().atomP.historic.panels.outlinePanel.selection)
+  console.log(
+    val(getStudio().atomP.historic.panels.outlinePanel.selection) ?? [],
+  )
 
   const mapped: (OutlineSelectable | undefined)[] = (
     val(getStudio().atomP.historic.panels.outlinePanel.selection) ?? []
@@ -30,7 +36,7 @@ export const getOutlineSelection = (): OutlineSelection => {
     if (!obj) return
     return obj
   })
-
+  console.log('MAPPED', mapped)
   return uniq(
     mapped.filter((s): s is OutlineSelectable => typeof s !== 'undefined'),
   )

@@ -94,11 +94,13 @@ export default class TheatreSheet implements ISheet {
     config: Props,
   ): ISheetObject<Props> {
     const internal = privateAPI(this)
+    debugger
     const sanitizedPath = validateAndSanitiseSlashedPathOrThrow(
       key,
       `sheet.object("${key}", ...)`,
     )
-
+    debugger
+    // this could be undefined
     const existingObject = internal.getObject(sanitizedPath)
 
     const nativeObject = null
@@ -119,6 +121,7 @@ export default class TheatreSheet implements ISheet {
 
       return existingObject.publicApi as $IntentionalAny
     } else {
+      // this is a really important step in this
       const sanitizedConfig = compound(config)
       const object = internal.createObject(
         sanitizedPath,

@@ -124,8 +124,8 @@ function drawGrid(
     )
 
     ctx.strokeStyle = isFullSecond
-      ? 'rgba(225, 225, 225, 0.04)'
-      : 'rgba(255, 255, 255, 0.01)'
+      ? 'rgba(225, 225, 225, 0.5)'
+      : 'rgba(255, 255, 255, 0.2)'
 
     ctx.beginPath()
     ctx.moveTo(posInClippedSpace, 0)
