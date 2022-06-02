@@ -1,5 +1,6 @@
 import React, {useContext, useEffect, useMemo} from 'react'
 import type {$IntentionalAny} from '@theatre/shared/utils/types'
+import {useLogger} from '@theatre/studio/uiComponents/useLogger'
 
 /** See {@link PointerCapturing} */
 export type CapturedPointer = {
@@ -32,14 +33,14 @@ type InternalPointerCapturing = {
 
 type PointerCapturingFn = (forDebugName: string) => InternalPointerCapturing
 
-// const logger = console
-
 function _usePointerCapturingContext(): PointerCapturingFn {
+  const logger = useLogger('PointerCapturing')
   type CaptureInfo = {
     debugOwnerName: string
     debugReason: string
   }
   let currentCaptureRef = React.useRef<null | CaptureInfo>(null)
+  const isPointerBeingCaptured = () => currentCaptureRef.current != null
 
   return (forDebugName) => {
     /** keep track of the captures being made by this user of {@link usePointerCapturing} */
@@ -51,7 +52,7 @@ function _usePointerCapturingContext(): PointerCapturingFn {
     }
     const capturing: PointerCapturing = {
       capturePointer(reason) {
-        // logger.log('Capturing pointer', {forDebugName, reason})
+        logger._debug('Capturing pointer', {forDebugName, reason})
         if (currentCaptureRef.current != null) {
           throw new Error(
             `"${forDebugName}" attempted capturing pointer for "${reason}" while already captured by "${currentCaptureRef.current.debugOwnerName}" for "${currentCaptureRef.current.debugReason}"`,
@@ -69,10 +70,10 @@ function _usePointerCapturingContext(): PointerCapturingFn {
           },
           release() {
             if (releaseCapture === currentCaptureRef.current) {
-              // logger.log('Releasing pointer', {
-              //   forDebugName,
-              //   reason,
-              // })
+              logger._debug('Releasing pointer', {
+                forDebugName,
+                reason,
+              })
               updateCapture(null)
               return true
             }
@@ -80,16 +81,14 @@ function _usePointerCapturingContext(): PointerCapturingFn {
           },
         }
       },
-      isPointerBeingCaptured() {
-        return currentCaptureRef.current != null
-      },
+      isPointerBeingCaptured,
     }
 
     return {
       capturing,
       forceRelease() {
-        if (currentCaptureRef.current === localCapture) {
-          // logger.log('Force releasing pointer', currentCaptureRef.current)
+        if (localCapture && currentCaptureRef.current === localCapture) {
+          logger._debug('Force releasing pointer', {localCapture})
           updateCapture(null)
         }
       },
@@ -100,7 +99,6 @@ function _usePointerCapturingContext(): PointerCapturingFn {
 const PointerCapturingContext = React.createContext<PointerCapturingFn>(
   null as $IntentionalAny,
 )
-// const ProviderChildren: React.FC<{children?: React.ReactNode}> = function
 
 const ProviderChildrenMemo: React.FC<{}> = React.memo(({children}) => (
   <>{children}</>
@@ -128,6 +126,17 @@ export function ProvidePointerCapturing(props: {
   )
 }
 
+/**
+ * Used to ensure we're locking drag and pointer events to a single place in the UI logic.
+ * Without this, we can much more easily accidentally create multiple drag handlers on
+ * child / parent dom elements which both `useDrag`, for example.
+ *
+ * An example of this helping us was when we first started building the Curve editor popover.
+ * In that activity, we were experiencing a weird issue where the popover would unmount while
+ * dragging away from the popover, and the drag end listener would not be called.
+ * By having "Pointer Capturing" we're able to identify that the pointer was not being properly
+ * released, because there would be a lock contention when trying to drag something else.
+ */
 export function usePointerCapturing(forDebugName: string): PointerCapturing {
   const pointerCapturingFn = useContext(PointerCapturingContext)
   const control = useMemo(() => {
@@ -139,7 +148,7 @@ export function usePointerCapturing(forDebugName: string): PointerCapturing {
       // force release on unmount
       control.forceRelease()
     }
-  }, [forDebugName, pointerCapturingFn])
+  }, [control])
 
   return control.capturing
 }

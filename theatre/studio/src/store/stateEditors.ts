@@ -1,4 +1,5 @@
 import type {
+  BasicKeyframedTrack,
   HistoricPositionalSequence,
   Keyframe,
   SheetState_Historic,
@@ -13,6 +14,7 @@ import type {
 } from '@theatre/shared/utils/addresses'
 import {encodePathToProp} from '@theatre/shared/utils/addresses'
 import type {
+  StudioSheetItemKey,
   KeyframeId,
   SequenceMarkerId,
   SequenceTrackId,
@@ -41,6 +43,7 @@ import type {
   OutlineSelectionState,
   PanelPosition,
   StudioAhistoricState,
+  StudioEphemeralState,
   StudioHistoricStateSequenceEditorMarker,
 } from './types'
 import {clamp, uniq} from 'lodash-es'
@@ -338,6 +341,11 @@ namespace stateEditors {
       }
     }
     export namespace ephemeral {
+      export function setShowOutline(
+        showOutline: StudioEphemeralState['showOutline'],
+      ) {
+        drafts().ephemeral.showOutline = showOutline
+      }
       export namespace projects {
         export namespace stateByProjectId {
           export function _ensure(p: ProjectAddress) {
@@ -399,6 +407,16 @@ namespace stateEditors {
       }
     }
     export namespace ahistoric {
+      export function setPinOutline(
+        pinOutline: StudioAhistoricState['pinOutline'],
+      ) {
+        drafts().ahistoric.pinOutline = pinOutline
+      }
+      export function setPinDetails(
+        pinDetails: StudioAhistoricState['pinDetails'],
+      ) {
+        drafts().ahistoric.pinDetails = pinDetails
+      }
       export function setVisibilityState(
         visibilityState: StudioAhistoricState['visibilityState'],
       ) {
@@ -480,6 +498,34 @@ namespace stateEditors {
                   stateEditors.studio.ahistoric.projects.stateByProjectId.stateBySheetId.sequence._ensure(
                     p,
                   ).clippedSpaceRange = {...p.range}
+                }
+              }
+
+              export namespace sequenceEditorCollapsableItems {
+                function _ensure(p: WithoutSheetInstance<SheetAddress>) {
+                  const seq =
+                    stateEditors.studio.ahistoric.projects.stateByProjectId.stateBySheetId.sequence._ensure(
+                      p,
+                    )
+                  let existing = seq.collapsableItems
+                  if (!existing) {
+                    existing = seq.collapsableItems = pointableSetUtil.create()
+                  }
+                  return existing
+                }
+                export function set(
+                  p: WithoutSheetInstance<SheetAddress> & {
+                    studioSheetItemKey: StudioSheetItemKey
+                    isCollapsed: boolean
+                  },
+                ) {
+                  const collapsableSet = _ensure(p)
+                  Object.assign(
+                    collapsableSet,
+                    pointableSetUtil.add(collapsableSet, p.studioSheetItemKey, {
+                      isCollapsed: p.isCollapsed,
+                    }),
+                  )
                 }
               }
             }
@@ -564,10 +610,13 @@ namespace stateEditors {
 
             const trackId = generateSequenceTrackId()
 
-            tracks.trackData[trackId] = {
+            const track: BasicKeyframedTrack = {
               type: 'BasicKeyframedTrack',
+              __debugName: `${p.objectKey}:${pathEncoded}`,
               keyframes: [],
             }
+
+            tracks.trackData[trackId] = track
             tracks.trackIdByPropPath[pathEncoded] = trackId
           }
 
@@ -577,7 +626,7 @@ namespace stateEditors {
             },
           ) {
             const tracks = _ensureTracksOfObject(p)
-            const encodedPropPath = JSON.stringify(p.pathToProp)
+            const encodedPropPath = encodePathToProp(p.pathToProp)
             const trackId = tracks.trackIdByPropPath[encodedPropPath]
 
             if (typeof trackId !== 'string') return
@@ -710,8 +759,8 @@ namespace stateEditors {
             if (!track) return
             const initialKeyframes = current(track.keyframes)
 
-            const selectedKeyframes = initialKeyframes.filter(
-              (kf) => p.keyframeIds.indexOf(kf.id) !== -1,
+            const selectedKeyframes = initialKeyframes.filter((kf) =>
+              p.keyframeIds.includes(kf.id),
             )
 
             const transformed = selectedKeyframes.map((untransformedKf) => {
@@ -723,6 +772,98 @@ namespace stateEditors {
             })
 
             replaceKeyframes({...p, keyframes: transformed})
+          }
+
+          /**
+           * Sets the easing between keyframes
+           *
+           * X = in keyframeIds
+           * * = not in keyframeIds
+           * + = modified handle
+           * ```
+           * X- --- -*- --- -X
+           * X+ --- +*- --- -X+
+           * ```
+           *
+           * TODO - explain further
+           */
+          export function setTweenBetweenKeyframes(
+            p: WithoutSheetInstance<SheetObjectAddress> & {
+              trackId: SequenceTrackId
+              keyframeIds: KeyframeId[]
+              handles: [number, number, number, number]
+            },
+          ) {
+            const track = _getTrack(p)
+            if (!track) return
+
+            track.keyframes = track.keyframes.map((kf, i) => {
+              const prevKf = track.keyframes[i - 1]
+              const isBeingEdited = p.keyframeIds.includes(kf.id)
+              const isAfterEditedKeyframe = p.keyframeIds.includes(prevKf?.id)
+
+              if (isBeingEdited && !isAfterEditedKeyframe) {
+                return {
+                  ...kf,
+                  handles: [
+                    kf.handles[0],
+                    kf.handles[1],
+                    p.handles[0],
+                    p.handles[1],
+                  ],
+                }
+              } else if (isBeingEdited && isAfterEditedKeyframe) {
+                return {
+                  ...kf,
+                  handles: [
+                    p.handles[2],
+                    p.handles[3],
+                    p.handles[0],
+                    p.handles[1],
+                  ],
+                }
+              } else if (isAfterEditedKeyframe) {
+                return {
+                  ...kf,
+                  handles: [
+                    p.handles[2],
+                    p.handles[3],
+                    kf.handles[2],
+                    kf.handles[3],
+                  ],
+                }
+              } else {
+                return kf
+              }
+            })
+          }
+
+          export function setHandlesForKeyframe(
+            p: WithoutSheetInstance<SheetObjectAddress> & {
+              trackId: SequenceTrackId
+              keyframeId: KeyframeId
+              start?: [number, number]
+              end?: [number, number]
+            },
+          ) {
+            const track = _getTrack(p)
+            if (!track) return
+            track.keyframes = track.keyframes.map((kf) => {
+              if (kf.id === p.keyframeId) {
+                // Use given value or fallback to original value,
+                // allowing the caller to customize exactly which side
+                // of the curve they are editing.
+                return {
+                  ...kf,
+                  handles: [
+                    p.end?.[0] ?? kf.handles[0],
+                    p.end?.[1] ?? kf.handles[1],
+                    p.start?.[0] ?? kf.handles[2],
+                    p.start?.[1] ?? kf.handles[3],
+                  ],
+                }
+              } else return kf
+            })
           }
 
           export function deleteKeyframes(

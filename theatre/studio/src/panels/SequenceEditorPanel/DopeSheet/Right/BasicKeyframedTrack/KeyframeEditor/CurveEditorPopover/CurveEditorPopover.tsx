@@ -1,5 +1,4 @@
-import type {Pointer} from '@theatre/dataverse'
-import {val} from '@theatre/dataverse'
+import {Box, prism} from '@theatre/dataverse'
 import type {KeyboardEvent} from 'react'
 import React, {
   useEffect,
@@ -10,10 +9,8 @@ import React, {
 } from 'react'
 import styled from 'styled-components'
 import fuzzy from 'fuzzy'
-import type {SequenceEditorPanelLayout} from '@theatre/studio/panels/SequenceEditorPanel/layout/layout'
 import getStudio from '@theatre/studio/getStudio'
 import type {CommitOrDiscard} from '@theatre/studio/StudioStore/StudioStore'
-import type KeyframeEditor from '@theatre/studio/panels/SequenceEditorPanel/DopeSheet/Right/BasicKeyframedTrack/KeyframeEditor/KeyframeEditor'
 import CurveSegmentEditor from './CurveSegmentEditor'
 import EasingOption from './EasingOption'
 import type {CSSCubicBezierArgsString, CubicBezierHandles} from './shared'
@@ -27,6 +24,7 @@ import {COLOR_BASE, COLOR_POPOVER_BACK} from './colors'
 import useRefAndState from '@theatre/studio/utils/useRefAndState'
 import type {Keyframe} from '@theatre/core/projects/store/types/SheetState_Historic'
 import {useUIOptionGrid, Outcome} from './useUIOptionGrid'
+import type {KeyframeConnectionWithAddress} from '@theatre/studio/panels/SequenceEditorPanel/DopeSheet/selections'
 
 const PRESET_COLUMNS = 3
 const PRESET_SIZE = 53
@@ -118,18 +116,25 @@ enum TextInputMode {
    * a CSS cubic bezier args string to reflect the state of the curve.
    */
   auto,
+  multipleValues,
 }
 
-type IProps = {
-  layoutP: Pointer<SequenceEditorPanelLayout>
-
+type ICurveEditorPopoverProps = {
   /**
    * Called when user hits enter/escape
    */
   onRequestClose: (reason: string) => void
-} & Parameters<typeof KeyframeEditor>[0]
 
-const CurveEditorPopover: React.FC<IProps> = (props) => {
+  curveConnection: KeyframeConnectionWithAddress
+  additionalConnections: Array<KeyframeConnectionWithAddress>
+}
+
+const CurveEditorPopover: React.VFC<ICurveEditorPopoverProps> = (props) => {
+  const allConnections = useMemo(
+    () => [props.curveConnection, ...props.additionalConnections],
+    [props.curveConnection, ...props.additionalConnections],
+  )
+
   ////// `tempTransaction` //////
   /*
    * `tempTransaction` is used for all edits in this popover. The transaction
@@ -137,25 +142,22 @@ const CurveEditorPopover: React.FC<IProps> = (props) => {
    * popover closes.
    */
   const tempTransaction = useRef<CommitOrDiscard | null>(null)
-  useEffect(
-    () =>
-      // Clean-up function, called when this React component unmounts.
-      // When it unmounts, we want to commit edits that are outstanding
-      () => {
-        tempTransaction.current?.commit()
-      },
-    [tempTransaction],
-  )
+  useEffect(() => {
+    const unlock = getLock(allConnections)
+    // Clean-up function, called when this React component unmounts.
+    // When it unmounts, we want to commit edits that are outstanding
+    return () => {
+      unlock()
+      tempTransaction.current?.commit()
+    }
+  }, [tempTransaction])
 
   ////// Keyframe and trackdata //////
-  const {index, trackData} = props
-  const cur = trackData.keyframes[index]
-  const next = trackData.keyframes[index + 1]
   const easing: CubicBezierHandles = [
-    trackData.keyframes[index].handles[2],
-    trackData.keyframes[index].handles[3],
-    trackData.keyframes[index + 1].handles[0],
-    trackData.keyframes[index + 1].handles[1],
+    props.curveConnection.left.handles[2],
+    props.curveConnection.left.handles[3],
+    props.curveConnection.right.handles[0],
+    props.curveConnection.right.handles[1],
   ]
 
   ////// Text input data and reactivity //////
@@ -198,9 +200,12 @@ const CurveEditorPopover: React.FC<IProps> = (props) => {
     TextInputMode.init,
   )
   useEffect(() => {
-    if (textInputMode === TextInputMode.auto)
+    if (textInputMode === TextInputMode.auto) {
       setInputValue(cssCubicBezierArgsFromHandles(easing))
-  }, [trackData])
+    } else if (textInputMode === TextInputMode.multipleValues) {
+      if (inputValue !== '') setInputValue('')
+    }
+  }, allConnections)
 
   // `edit` keeps track of the current edited state of the curve.
   const [edit, setEdit] = useState<CSSCubicBezierArgsString | null>(
@@ -211,11 +216,23 @@ const CurveEditorPopover: React.FC<IProps> = (props) => {
 
   // When `preview` or `edit` change, use the `tempTransaction` to change the
   // curve in Theate's data.
-  useMemo(
-    () =>
-      setTempValue(tempTransaction, props, cur, next, preview ?? edit ?? ''),
-    [preview, edit],
-  )
+  useEffect(() => {
+    if (
+      textInputMode !== TextInputMode.init &&
+      textInputMode !== TextInputMode.multipleValues
+    )
+      setTempValue(tempTransaction, allConnections, preview ?? edit ?? '')
+  }, [preview, edit, textInputMode])
+
+  ////// selection stuff //////
+  if (
+    allConnections.some(
+      areConnectedKeyframesTheSameAs(props.curveConnection),
+    ) &&
+    textInputMode === TextInputMode.init
+  ) {
+    setTextInputMode(TextInputMode.multipleValues)
+  }
 
   //////  Curve editing reactivity //////
   const onCurveChange = (newHandles: CubicBezierHandles) => {
@@ -266,7 +283,7 @@ const CurveEditorPopover: React.FC<IProps> = (props) => {
     setPreview(item.value)
   const onEasingOptionMouseOut = () => setPreview(null)
   const onSelectEasingOption = (item: {label: string; value: string}) => {
-    setTempValue(tempTransaction, props, cur, next, item.value)
+    setTempValue(tempTransaction, allConnections, item.value)
     props.onRequestClose('selected easing option')
 
     return Outcome.Handled
@@ -352,7 +369,11 @@ const CurveEditorPopover: React.FC<IProps> = (props) => {
     <Grid>
       <SearchBox
         value={inputValue}
-        placeholder="Search presets..."
+        placeholder={
+          textInputMode === TextInputMode.multipleValues
+            ? 'Multiple easings selected'
+            : 'Search presets...'
+        }
         onPaste={setTimeoutFunction(onInputChange)}
         onChange={onInputChange}
         ref={inputRef}
@@ -369,7 +390,8 @@ const CurveEditorPopover: React.FC<IProps> = (props) => {
       </OptionsContainer>
       <CurveEditorContainer onClick={() => inputRef.current?.focus()}>
         <CurveSegmentEditor
-          {...props}
+          curveConnection={props.curveConnection}
+          backgroundConnections={props.additionalConnections}
           onCurveChange={onCurveChange}
           onCancelCurveChange={onCancelCurveChange}
         />
@@ -382,18 +404,19 @@ export default CurveEditorPopover
 
 function setTempValue(
   tempTransaction: React.MutableRefObject<CommitOrDiscard | null>,
-  props: IProps,
-  cur: Keyframe,
-  next: Keyframe,
-  newCurve: string,
+  keyframeConnections: Array<KeyframeConnectionWithAddress>,
+  newCurveCssCubicBezier: string,
 ): void {
   tempTransaction.current?.discard()
   tempTransaction.current = null
 
-  const handles = handlesFromCssCubicBezierArgs(newCurve)
+  const handles = handlesFromCssCubicBezierArgs(newCurveCssCubicBezier)
   if (handles === null) return
 
-  tempTransaction.current = transactionSetCubicBezier(props, cur, next, handles)
+  tempTransaction.current = transactionSetCubicBezier(
+    keyframeConnections,
+    handles,
+  )
 }
 
 function discardTempValue(
@@ -404,41 +427,38 @@ function discardTempValue(
 }
 
 function transactionSetCubicBezier(
-  props: IProps,
-  cur: Keyframe,
-  next: Keyframe,
-  newHandles: CubicBezierHandles,
+  keyframeConnections: Array<KeyframeConnectionWithAddress>,
+  handles: CubicBezierHandles,
 ): CommitOrDiscard {
   return getStudio().tempTransaction(({stateEditors}) => {
-    const {replaceKeyframes} =
+    const {setHandlesForKeyframe} =
       stateEditors.coreByProject.historic.sheetsById.sequence
 
-    replaceKeyframes({
-      ...props.leaf.sheetObject.address,
-      snappingFunction: val(props.layoutP.sheet).getSequence()
-        .closestGridPosition,
-      trackId: props.leaf.trackId,
-      keyframes: [
-        {
-          ...cur,
-          handles: [
-            cur.handles[0],
-            cur.handles[1],
-            newHandles[0],
-            newHandles[1],
-          ],
-        },
-        {
-          ...next,
-          handles: [
-            newHandles[2],
-            newHandles[3],
-            next.handles[2],
-            next.handles[3],
-          ],
-        },
-      ],
-    })
+    for (const {
+      projectId,
+      sheetId,
+      objectKey,
+      trackId,
+      left,
+      right,
+    } of keyframeConnections) {
+      setHandlesForKeyframe({
+        projectId,
+        sheetId,
+        objectKey,
+        trackId,
+        keyframeId: left.id,
+        start: [handles[0], handles[1]],
+      })
+      setHandlesForKeyframe({
+        projectId,
+        sheetId,
+        objectKey,
+        trackId,
+        keyframeId: right.id,
+        end: [handles[2], handles[3]],
+      })
+    }
   })
 }
 
@@ -454,3 +474,49 @@ export function mod(n: number, m: number) {
 function setTimeoutFunction(f: Function, timeout?: number) {
   return () => setTimeout(f, timeout)
 }
+
+function areConnectedKeyframesTheSameAs({
+  left: left1,
+  right: right1,
+}: {
+  left: Keyframe
+  right: Keyframe
+}) {
+  return ({left: left2, right: right2}: {left: Keyframe; right: Keyframe}) =>
+    left1.handles[2] !== left2.handles[2] ||
+    left1.handles[3] !== left2.handles[3] ||
+    right1.handles[0] !== right2.handles[0] ||
+    right1.handles[1] !== right2.handles[1]
+}
+
+const {isCurveEditorOpenD, isConnectionEditingInCurvePopover, getLock} =
+  (() => {
+    const connectionsInCurvePopoverEdit = new Box<
+      Array<KeyframeConnectionWithAddress>
+    >([])
+
+    return {
+      getLock(connections: Array<KeyframeConnectionWithAddress>) {
+        connectionsInCurvePopoverEdit.set(connections)
+
+        return function unlock() {
+          connectionsInCurvePopoverEdit.set([])
+        }
+      },
+      isCurveEditorOpenD: prism(() => {
+        return connectionsInCurvePopoverEdit.derivation.getValue().length > 0
+      }),
+      // must be run in a prism
+      isConnectionEditingInCurvePopover(con: KeyframeConnectionWithAddress) {
+        prism.ensurePrism()
+        return connectionsInCurvePopoverEdit.derivation
+          .getValue()
+          .some(
+            ({left, right}) =>
+              con.left.id === left.id && con.right.id === right.id,
+          )
+      },
+    }
+  })()
+
+export {isCurveEditorOpenD, isConnectionEditingInCurvePopover}

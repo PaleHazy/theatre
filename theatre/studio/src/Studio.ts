@@ -21,6 +21,7 @@ import type {OnDiskState} from '@theatre/core/projects/store/storeTypes'
 import type {Deferred} from '@theatre/shared/utils/defer'
 import {defer} from '@theatre/shared/utils/defer'
 import type {ProjectId} from '@theatre/shared/utils/ids'
+import checkForUpdates from './checkForUpdates'
 
 export type CoreExports = typeof _coreExports
 
@@ -52,7 +53,7 @@ export class Studio {
     this.address = {studioId: nanoid(10)}
     this.publicApi = new TheatreStudio(this)
 
-    if (process.env.NODE_ENV !== 'test') {
+    if (process.env.NODE_ENV !== 'test' && typeof window !== 'undefined') {
       this.ui = new UI(this)
     }
 
@@ -96,6 +97,7 @@ export class Studio {
 
     if (process.env.NODE_ENV !== 'test') {
       this.ui.render()
+      checkForUpdates()
     }
   }
 
@@ -170,6 +172,7 @@ export class Studio {
       if (drafts.ephemeral.extensions.byId[extension.id]) {
         throw new Error(`Extension id "${extension.id}" is already defined`)
       }
+
       drafts.ephemeral.extensions.byId[extension.id] = extension
 
       const allPaneClasses = drafts.ephemeral.extensions.paneClasses

@@ -1,15 +1,11 @@
-import React, {
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import {usePointerCapturing} from '@theatre/studio/UIRoot/PointerCapturing'
+import useRefAndState from '@theatre/studio/utils/useRefAndState'
+import React, {useCallback, useContext, useEffect, useRef} from 'react'
 import {createPortal} from 'react-dom'
 import {PortalContext} from 'reakit'
 import type {AbsolutePlacementBoxConstraints} from './TooltipWrapper'
 import TooltipWrapper from './TooltipWrapper'
+import {contextMenuShownContext} from '@theatre/studio/panels/DetailPanel/DetailPanel'
 
 export type OpenFn = (
   e: React.MouseEvent | MouseEvent | {clientX: number; clientY: number},
@@ -25,6 +21,12 @@ type State =
         clientY: number
       }
       target: HTMLElement
+      opts: Opts
+      onPointerOutside?: {
+        threshold: number
+        callback: (e: MouseEvent) => void
+      }
+      onClickOutside: () => void
     }
 
 const PopoverAutoCloseLock = React.createContext({
@@ -37,33 +39,69 @@ const PopoverAutoCloseLock = React.createContext({
   },
 })
 
+type Opts = {
+  debugName: string
+  closeWhenPointerIsDistant?: boolean
+  pointerDistanceThreshold?: number
+  closeOnClickOutside?: boolean
+  constraints?: AbsolutePlacementBoxConstraints
+  verticalGap?: number
+}
+
 export default function usePopover(
-  opts: {
-    debugName: string
-    closeWhenPointerIsDistant?: boolean
-    pointerDistanceThreshold?: number
-    closeOnClickOutside?: boolean
-    constraints?: AbsolutePlacementBoxConstraints
-  },
+  opts: Opts | (() => Opts),
   render: () => React.ReactElement,
 ): [node: React.ReactNode, open: OpenFn, close: CloseFn, isOpen: boolean] {
-  const _debug = (...args: any) => {} // console.debug.bind(console, opts.debugName)
+  const _debug = (...args: any) => {}
 
-  const [state, setState] = useState<State>({
+  // want to make sure that we don't close a popover when dragging something (like a curve editor handle)
+  // I think this could be improved to handle closing after done dragging, better.
+  const {isPointerBeingCaptured} = usePointerCapturing(`usePopover`)
+
+  const [stateRef, state] = useRefAndState<State>({
     isOpen: false,
   })
 
+  const optsRef = useRef(opts)
+
+  const close = useCallback<CloseFn>((reason: string): void => {
+    _debug(`closing due to "${reason}"`)
+    stateRef.current = {isOpen: false}
+  }, [])
+
   const open = useCallback<OpenFn>((e, target) => {
-    setState({
+    const opts =
+      typeof optsRef.current === 'function'
+        ? optsRef.current()
+        : optsRef.current
+
+    function onClickOutside(): void {
+      if (lock.childHasFocusRef.current) return
+      if (opts.closeOnClickOutside !== false) {
+        close('clicked outside popover')
+      }
+    }
+
+    stateRef.current = {
       isOpen: true,
       clickPoint: {clientX: e.clientX, clientY: e.clientY},
       target,
-    })
-  }, [])
-
-  const close = useCallback<CloseFn>((reason) => {
-    _debug(`closing due to "${reason}"`)
-    setState({isOpen: false})
+      opts,
+      onClickOutside: onClickOutside,
+      onPointerOutside:
+        opts.closeWhenPointerIsDistant === false
+          ? undefined
+          : {
+              threshold: opts.pointerDistanceThreshold ?? 100,
+              callback: () => {
+                if (lock.childHasFocusRef.current) return
+                // this is a bit weird, because when you stop capturing, then the popover can close on you...
+                // TODO: Better fixes?
+                if (isPointerBeingCaptured()) return
+                close('pointer outside')
+              },
+            },
+    }
   }, [])
 
   /**
@@ -76,24 +114,19 @@ export default function usePopover(
     state,
   })
 
-  const onClickOutside = useCallback(() => {
-    if (lock.childHasFocusRef.current) return
-    if (opts.closeOnClickOutside !== false) {
-      close('clicked outside popover')
+  // TODO: this lock is now exported from the detail panel, do refactor it when you get the chance
+  const [, addContextMenu] = useContext(contextMenuShownContext)
+
+  useEffect(() => {
+    let removeContextMenu: () => void | undefined
+    if (state.isOpen) {
+      removeContextMenu = addContextMenu()
     }
-  }, [opts.closeOnClickOutside])
+
+    return () => removeContextMenu?.()
+  }, [state.isOpen])
 
   const portalLayer = useContext(PortalContext)
-  const onPointerOutside = useMemo(() => {
-    if (opts.closeWhenPointerIsDistant === false) return undefined
-    return {
-      threshold: opts.pointerDistanceThreshold ?? 100,
-      callback: () => {
-        if (lock.childHasFocusRef.current) return
-        close('pointer outside')
-      },
-    }
-  }, [opts.closeWhenPointerIsDistant])
 
   const node = state.isOpen ? (
     createPortal(
@@ -101,9 +134,10 @@ export default function usePopover(
         <TooltipWrapper
           children={render}
           target={state.target}
-          onClickOutside={onClickOutside}
-          onPointerOutside={onPointerOutside}
-          constraints={opts.constraints}
+          onClickOutside={state.onClickOutside}
+          onPointerOutside={state.onPointerOutside}
+          constraints={state.opts.constraints}
+          verticalGap={state.opts.verticalGap}
         />
       </PopoverAutoCloseLock.Provider>,
       portalLayer!,

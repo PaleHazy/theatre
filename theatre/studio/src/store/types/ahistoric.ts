@@ -1,9 +1,23 @@
 import type {ProjectState} from '@theatre/core/projects/store/storeTypes'
 import type {Keyframe} from '@theatre/core/projects/store/types/SheetState_Historic'
-import type {ProjectId} from '@theatre/shared/utils/ids'
+import type {ProjectId, SheetId} from '@theatre/shared/utils/ids'
 import type {IRange, StrictRecord} from '@theatre/shared/utils/types'
+import type {PointableSet} from '@theatre/shared/utils/PointableSet'
+import type {StudioSheetItemKey} from '@theatre/shared/utils/ids'
+
+export type UpdateCheckerResponse =
+  | {hasUpdates: true; newVersion: string; releasePage: string}
+  | {hasUpdates: false}
 
 export type StudioAhistoricState = {
+  /**
+   * undefined means the outline menu is pinned
+   */
+  pinOutline?: boolean
+  /**
+   * undefined means the detail panel is pinned
+   */
+  pinDetails?: boolean
   visibilityState: 'everythingIsHidden' | 'everythingIsVisible'
   clipboard?: {
     keyframes?: Keyframe[]
@@ -16,12 +30,17 @@ export type StudioAhistoricState = {
       distanceFromVerticalEdge: number
     }
   }
+  updateChecker?: {
+    // timestamp of the last time we checked for updates
+    lastChecked: number
+    result: UpdateCheckerResponse | 'error'
+  }
   projects: {
     stateByProjectId: StrictRecord<
-      string,
+      ProjectId,
       {
         stateBySheetId: StrictRecord<
-          string,
+          SheetId,
           {
             sequence?: {
               /**
@@ -45,6 +64,13 @@ export type StudioAhistoricState = {
                 enabled: boolean
                 range: IRange
               }
+
+              collapsableItems?: PointableSet<
+                StudioSheetItemKey,
+                {
+                  isCollapsed: boolean
+                }
+              >
             }
           }
         >

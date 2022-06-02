@@ -1,18 +1,21 @@
 {
   "name": "theatre-monorepo",
   "license": "Apache-2.0",
-  "version": "0.4.8-dev.3",
+  "version": "0.5.0-rc.1",
   "workspaces": [
     "packages/*",
     "examples/*",
-    "theatre"
+    "theatre",
+    "compatibility-tests"
   ],
   "scripts": {
     "playground": "yarn workspace playground run serve",
     "test:e2e": "yarn workspace playground run test",
     "test:e2e:ci": "yarn workspace playground run test:ci",
+    "test:compatibility:ci": "yarn workspace @theatre/compatibility-tests run test:ci",
     "typecheck": "yarn run build:ts",
     "build": "zx scripts/build.mjs",
+    "clean": "zx scripts/clean.mjs",
     "build:ts": "tsc --build ./devEnv/typecheck-all-projects/tsconfig.all.json",
     "test": "jest",
     "postinstall": "husky install",
@@ -56,5 +59,9 @@
     "typescript": "^4.4.2",
     "zx": "^2.0.0"
   },
-  "packageManager": "yarn@3.2.0"
+  "packageManager": "yarn@3.2.0",
+  "resolutions": {
+    "@types/react": "^17.0.9",
+    "@types/react-dom": "^17.0.9"
+  }
 }

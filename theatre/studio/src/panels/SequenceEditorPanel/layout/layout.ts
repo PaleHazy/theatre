@@ -1,7 +1,7 @@
 import type Sheet from '@theatre/core/sheets/Sheet'
 import getStudio from '@theatre/studio/getStudio'
 import type useDrag from '@theatre/studio/uiComponents/useDrag'
-import type {PropAddress} from '@theatre/shared/utils/addresses'
+import type {SheetObjectAddress} from '@theatre/shared/utils/addresses'
 import subPrism from '@theatre/shared/utils/subPrism'
 import type {
   IRange,
@@ -57,9 +57,7 @@ export type DopeSheetSelection = {
     }
   >
   getDragHandlers(
-    origin: PropAddress & {
-      trackId: SequenceTrackId
-      keyframeId: KeyframeId
+    origin: SheetObjectAddress & {
       positionAtStartOfDrag: number
       domNode: Element
     },
@@ -186,7 +184,11 @@ export function sequenceEditorPanelLayout(
       .stateBySheetId[sheet.address.sheetId]
 
   return prism(() => {
-    const tree = subPrism('tree', () => calculateSequenceEditorTree(sheet), [])
+    const tree = subPrism(
+      'tree',
+      () => calculateSequenceEditorTree(sheet, studio),
+      [],
+    )
 
     const panelDims = val(panelDimsP)
     const graphEditorState = val(
